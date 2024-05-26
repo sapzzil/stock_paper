@@ -3,6 +3,12 @@
 Created on Fri May 24 16:04:35 2024
 
 @author: sapzzil
+
+1. 기술지표 추가
+2. correlation 분석 -> 서로 상관성 없는 데이터만 추출(ranking)
+3. input : 10일, output : 5일 구성
+4. lstm 모델로 예측 진행
+
 """
 
 import os
@@ -248,14 +254,14 @@ for i, file_nm in [(0,'data_AAPL_daily.csv')]:#enumerate(file_list):
 
 
     # 모델 학습
-    history = model.fit(X_train, Y_train, batch_size=100, epochs=15)
+    history = model.fit(X_train, Y_train, batch_size=100, epochs=150)
 
     # 예측 수행
     train_predict = model.predict(X_train)
     test_predict = model.predict(X_test)
     
     
-    n = 609
+    n = 0
     tmp = pd.DataFrame(train_predict[n],columns=['train_pred'])
     tmp['Y_train'] = Y_train[n]
     tmp.plot()
