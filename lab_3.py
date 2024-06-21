@@ -15,9 +15,8 @@ import os
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
-
+import yfinance as yf
 import ta
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout
@@ -138,7 +137,7 @@ def add_ta(df):
 def create_dataset(dataset, time_step=10, y_cnt = 5):
     X, Y = [], []
     for i in range(len(dataset)-(time_step + y_cnt +1)):
-        scaled_data = dataset[i:((i+time_step + y_cnt))] / (dataset[0] + 0.000000001)
+        scaled_data = dataset[i:((i+time_step + y_cnt))] / (dataset[i] + 0.000000001)
         
         X.append(scaled_data[0:time_step])
         Y.append(scaled_data[time_step:time_step + y_cnt, -1])  # 'Close' 값을 예측 목표로 사용
@@ -162,31 +161,31 @@ def feature_selection(df, corr_x_quantile = 0.7):#, corr_y_quantile = 0.85):
     
     check_list = pd.DataFrame()
 
-    for col in [col for col in corr_result.index if col != 'Close']:
-        if col == 'Close':
+    for col in [col for col in corr_result.index if col != 'Adj Close']:
+        if col == 'Adj Close':
             continue
-        tmp = corr_result.loc[(corr_result.index != 'Close') & 
+        tmp = corr_result.loc[(corr_result.index != 'Adj Close') & 
                               ((corr_result[col] >= pos_corr_coef) | 
                               (corr_result[col] < neg_corr_coef)), col]
-        # tmp = corr_result.loc[(~corr_result.index.str.contains('Close')) & 
+        # tmp = corr_result.loc[(~corr_result.index.str.contains('Adj Close')) & 
         #                       (corr_result[col].abs() >= corr_coef), col]
         if len(tmp) <= 1 or tmp.index.values[-1] == col :
             continue
-        tmp = pd.merge(tmp, corr_result['Close'], left_index=True, right_index=True, how='left')
+        tmp = pd.merge(tmp, corr_result['Adj Close'], left_index=True, right_index=True, how='left')
         tmp['feature'] = col
-        tmp = tmp.sort_values(by='Close', ascending=False)
+        tmp = tmp.sort_values(by='Adj Close', ascending=False)
         
         # if tmp.index.values[0] == col:
         #     tmp.loc[col, 'use'] = True
         #     tmp.loc[pd.isna(tmp.use),'use'] = False
         
         # else :
-        tmp['feature_Y_coef'] = tmp['Close'][col]
-        tmp['use'] = tmp['feature_Y_coef'].abs() < tmp['Close'].abs()
+        tmp['feature_Y_coef'] = tmp['Adj Close'][col]
+        tmp['use'] = tmp['feature_Y_coef'].abs() < tmp['Adj Close'].abs()
         tmp = tmp.rename(columns = {col:'feature_selected_coef'})
 
         check_list = pd.concat([check_list,tmp.loc[tmp.use,:]])
-    check_list = check_list[['feature', 'feature_selected_coef',  'feature_Y_coef', 'Close']]
+    check_list = check_list[['feature', 'feature_selected_coef',  'feature_Y_coef', 'Adj Close']]
     check_list['selected'] = check_list.index    
 
     # check_list.loc[(check_list.correlation_coef == 1) & ()]
@@ -202,24 +201,27 @@ def feature_selection(df, corr_x_quantile = 0.7):#, corr_y_quantile = 0.85):
 
     return selected
 
+start_date = "2020-01-01"
+end_date = "2023-12-31"
 
 for i, file_nm in [(0,'data_AAPL_daily.csv')]:#enumerate(file_list):
     stock_nm = file_nm.split('.')[0]
-    stock = load_data(data_dir, file_nm)    
-    
+    # stock = load_data(data_dir, file_nm)    
+    stock = yf.download('AAPL', start=start_date, end=end_date)
     # stock = add_technical_indicators(stock)
     stock = add_ta(stock)
     stock = stock[30:]
+    stock = stock.drop(columns=['Close'])
     
     selected = feature_selection(stock,0.9)    
-    features = selected + ['Close']
+    features = selected + ['Adj Close']
     stock = stock[features]
     stock = stock.dropna().values
     
     
 
     # 시계열 데이터 생성
-    time_step = 10
+    time_step = 20
     X, Y = create_dataset(stock, time_step)
     
     # 학습 데이터와 테스트 데이터로 분리
@@ -261,12 +263,12 @@ for i, file_nm in [(0,'data_AAPL_daily.csv')]:#enumerate(file_list):
     test_predict = model.predict(X_test)
     
     
-    n = 0
+    n = 1
     tmp = pd.DataFrame(train_predict[n],columns=['train_pred'])
     tmp['Y_train'] = Y_train[n]
     tmp.plot()
     
-    n = 699
+    n = 89
     tmp = pd.DataFrame(test_predict[n],columns=['test_pred'])
     tmp['Y_test'] = Y_test[n]
     tmp.plot()
