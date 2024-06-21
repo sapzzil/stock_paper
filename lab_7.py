@@ -146,6 +146,7 @@ for i,col in enumerate(tech_data.columns):
 n_days = 5  # 사용할 기간
 X_data = []
 Y_data = []
+df = tech_data.copy()
 for i in range(len(df) - n_days * 2 + 1):
     X = df.iloc[i:i+n_days].drop(columns=['Close'])
     Y = df.iloc[i+n_days:i+n_days*2]['Close'].values
@@ -163,7 +164,7 @@ test_Y = np.array(Y_data[train_data_len:])
 
 
 # 샘플 데이터 생성 (여기서는 임의의 데이터를 사용)
-samples = 100  # 샘플 수
+samples = 200  # 샘플 수
 time_steps = train_X[0].shape[0]
 input_dim = train_X[0].shape[1]
 
@@ -177,49 +178,42 @@ model.add(Dense(25))
 model.add(Dense(5))
 
 # 모델 컴파일
-model.compile(optimizer='adam', loss='mean_squared_error')
+model.compile(optimizer='adam', loss='mae')
 
 # 모델 구조 확인
 model.summary()
 
 
 # 모델 학습
-history = model.fit(train_X, train_Y, batch_size=samples, epochs=150)
+history = model.fit(train_X, train_Y, batch_size=samples, epochs=200)
 
 # 예측 수행
 train_predict = model.predict(train_X)
 test_predict = model.predict(test_X)
 
 
-n = 10
-tmp = pd.DataFrame(train_predict[n],columns=['train_pred'])
-tmp['train_Y'] = train_Y[n]
-tmp.plot()
-
-n = 89
-tmp = pd.DataFrame(test_predict[n],columns=['test_pred'])
+n = 186
+tmp = pd.DataFrame(test_predict[n],columns=['test_predict'])
 tmp['test_Y'] = test_Y[n]
-tmp.plot()
+tmp.plot(grid=True)
+
+
+
+tmp = pd.DataFrame([val[0] for val in train_predict],columns=['train_pred'])
+tmp['train_Y'] = [val[0] for val in train_Y]  #test_Y[n]
+tmp.plot(grid=True)
+
+# n = 89
+tmp = pd.DataFrame([val[4] for val in test_predict],columns=['test_pred'])
+tmp['test_Y'] = [val[4] for val in test_Y]  #test_Y[n]
+tmp.plot(grid=True)
  
-# 모든 데이터프레임을 하나의 데이터프레임으로 결합
-df = add_ta(stock_data.copy())
-df_desc = df.describe()
 
+tmp = pd.DataFrame([val[0] < val[4] for val in test_Y], columns=['test'])
+tmp['pred'] = [val[0] < val[4] for val in test_predict]
+tmp['check'] = tmp.test ==tmp.pred
 
-stock_data_diff = stock_data.pct_change().dropna()
-df_diff = add_ta(stock_data_diff.copy())
-df_diff_desc = df_diff.describe()
-
-
-
-
-
-
-Money Flow Index (MFI)
-Moving Average Convergence & Divergence (MACD)
-Relative Strength Index (RSI)
-Bollinger Bands
-Daily Log Return (DLR)
+tmp['check'].sum() /len(tmp)
 
 
 
