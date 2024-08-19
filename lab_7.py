@@ -227,8 +227,3 @@ tmp['check'].sum() /len(tmp)
 
 
 
-
-
-
-
-

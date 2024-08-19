@@ -213,13 +213,16 @@ def evaluate_models(X_train, y_train, X_test, y_test):
         # 예측
         y_pred = model.predict(X_test)
         y_proba = model.predict_proba(X_test)[:, 1]
-        
         # 평가 지표 계산
+        
         accuracy = accuracy_score(y_test, y_pred)
         precision = precision_score(y_test, y_pred)
         recall = recall_score(y_test, y_pred)
         f1 = f1_score(y_test, y_pred)
-        roc_auc = roc_auc_score(y_test, y_proba)
+        if len(set(y_test)) > 1:  # 클래스가 두 개 이상 있을 경우에만 ROC AUC 계산
+            roc_auc = roc_auc_score(y_test, y_proba)
+        else:
+            roc_auc = None  # ROC AUC를 계산할 수 없을 경우 None
         
         # 결과 저장
         results[name] = {
@@ -246,6 +249,7 @@ for ticker in os.listdir(base_directory):
     if os.path.exists(file_path):
         print(f"Processing data for {ticker_nm}...")
         df = pd.read_csv(file_path)
+        if len(df) < 1000 : continue
         
         # 전처리 수행
         df = preprocess_data(df)
@@ -256,6 +260,7 @@ for ticker in os.listdir(base_directory):
         
         train_X, train_y = create_dataset(train_df_transformed)
         test_X, test_y = create_dataset(test_df_transformed)
+        
         
         results_df = evaluate_models(train_X, train_y, test_X, test_y)
         
