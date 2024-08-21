@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Created on Fri Aug 16 14:25:54 2024
+Created on Wed Aug 21 16:18:02 2024
 
-@author: blood
+@author: sapzzil
 
-classification
+regression
 """
 
 
@@ -98,19 +98,20 @@ def transform_data(df, scaler=None, is_train=True, diff_order=1):
         
         return df_transformed, last_values
 
-def create_dataset(df, n=1, threshold=0.004, window_size=5):
+
+
+def create_dataset(df, window_size=5, n=1):
     """
-    시계열 데이터를 바탕으로 X (특징 데이터)와 y (타겟 데이터)를 생성하는 함수.
+    회귀를 위한 X, y 데이터셋을 생성하는 함수.
     
     Parameters:
     df (pandas.DataFrame): 입력 데이터프레임. 로그 변환, 차분, 표준화된 데이터.
-    n (int): n일 후의 Close 값 예측. 기본값은 1일 후.
-    threshold (float): 상승 기준을 나타내는 비율 (기본값은 0.4%).
-    window_size (int): 특징 데이터를 위한 윈도우 크기 (기본값은 5일).
+    m (int): X 데이터셋을 구성할 기간 (m일간의 피처 데이터).
+    n (int): y 데이터셋을 구성할 예측 목표 기간 (n일 후의 Close 값).
     
     Returns:
-    X (numpy.ndarray): 특징 데이터셋.
-    y (numpy.ndarray): 타겟 데이터셋.
+    X (numpy.ndarray): 특징 데이터셋. 각 샘플은 (m * 피처 수) 형태의 벡터.
+    y (numpy.ndarray): 타겟 데이터셋. 각 샘플은 n일 후의 Close 값.
     """
     
     X, y = [], []
@@ -118,16 +119,11 @@ def create_dataset(df, n=1, threshold=0.004, window_size=5):
     if len(df) <= window_size + n:
         raise ValueError("데이터가 충분하지 않습니다.")
     
-    for i in range(len(df) - window_size - n):
-        # X 생성 (window_size 기간 동안의 데이터)
-        # 평탄화 작업까지
+    for i in range(len(df) - window_size - n + 1):
+        # X 생성 (m일간의 데이터)
         X_window = df[['Open', 'High', 'Low', 'Close', 'Volume']].iloc[i:i + window_size].values.flatten()
-        # y 생성 (n일 후의 Close 값과 현재 Close 값을 비교)
-        future_close = df['Close'].iloc[i + window_size - 1 + n]
-        current_close = df['Close'].iloc[i + window_size - 1]
-        # 0.4% 이상의 상승 여부 판단
-        change = (future_close - current_close) / current_close
-        y_value = 1 if change > threshold else 0
+        # y 생성 (n일 후의 Close 값)
+        y_value = df['Close'].iloc[i + window_size + n - 1]
         
         # X와 y를 각각 리스트에 추가
         X.append(X_window)
@@ -138,6 +134,7 @@ def create_dataset(df, n=1, threshold=0.004, window_size=5):
     y = np.array(y)
     
     return X, y
+
 
 def reverse_transform(transformed_df, last_values, scaler):
     """
@@ -168,11 +165,12 @@ def reverse_transform(transformed_df, last_values, scaler):
     return restored_df
 
 
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
 
 def evaluate_models(X_train, y_train, X_test, y_test):
     """
-    여러 머신러닝 모델을 학습시키고, 성능을 평가한 후 결과를 반환하는 함수.
+    여러 회귀 모델을 학습시키고, 성능을 평가한 후 결과를 반환하는 함수.
     
     Parameters:
     X_train (numpy.ndarray): 학습용 특징 데이터.
@@ -180,28 +178,28 @@ def evaluate_models(X_train, y_train, X_test, y_test):
     X_test (numpy.ndarray): 테스트용 특징 데이터.
     y_test (numpy.ndarray): 테스트용 타겟 데이터.
     save_to_csv (bool): 결과를 CSV 파일로 저장할지 여부 (기본값은 False).
-    csv_filename (str): CSV 파일명 (기본값은 "model_results.csv").
+    csv_filename (str): CSV 파일명 (기본값은 "regression_model_results.csv").
     
     Returns:
     results_df (pandas.DataFrame): 각 모델의 성능 평가 결과가 담긴 데이터프레임.
     """
     
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-    from sklearn.svm import SVC
+    from sklearn.linear_model import LinearRegression
+    from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+    from sklearn.svm import SVR
     import xgboost as xgb
     import lightgbm as lgb
     import catboost as cat
 
     # 모델 리스트 정의
     models = {
-        "Logistic Regression": LogisticRegression(),
-        "Random Forest": RandomForestClassifier(),
-        "Gradient Boosting": GradientBoostingClassifier(),
-        "SVM": SVC(probability=True),
-        "XGBoost": xgb.XGBClassifier(),
-        "LightGBM": lgb.LGBMClassifier(),
-        "CatBoost": cat.CatBoostClassifier(verbose=0)
+        "Linear Regression": LinearRegression(),
+        "Random Forest": RandomForestRegressor(n_estimators=50, max_depth=10, n_jobs=-1),
+        "Gradient Boosting": GradientBoostingRegressor(),
+        "SVR": SVR(),
+        "XGBoost": xgb.XGBRegressor(),
+        "LightGBM": lgb.LGBMRegressor(),
+        "CatBoost": cat.CatBoostRegressor(verbose=0)
     }
 
     # 결과 저장용 딕셔너리
@@ -214,32 +212,26 @@ def evaluate_models(X_train, y_train, X_test, y_test):
         
         # 예측
         y_pred = model.predict(X_test)
-        y_proba = model.predict_proba(X_test)[:, 1]
-        # 평가 지표 계산
         
-        accuracy = accuracy_score(y_test, y_pred)
-        precision = precision_score(y_test, y_pred)
-        recall = recall_score(y_test, y_pred)
-        f1 = f1_score(y_test, y_pred)
-        if len(set(y_test)) > 1:  # 클래스가 두 개 이상 있을 경우에만 ROC AUC 계산
-            roc_auc = roc_auc_score(y_test, y_proba)
-        else:
-            roc_auc = None  # ROC AUC를 계산할 수 없을 경우 None
+        # 평가 지표 계산
+        mae = mean_absolute_error(y_test, y_pred)
+        mse = mean_squared_error(y_test, y_pred)
+        rmse = np.sqrt(mse)
+        r2 = r2_score(y_test, y_pred)
         
         # 결과 저장
         results[name] = {
-            "Accuracy": accuracy,
-            "Precision": precision,
-            "Recall": recall,
-            "F1 Score": f1,
-            "ROC AUC": roc_auc
+            "MAE": mae,
+            "MSE": mse,
+            "RMSE": rmse,
+            "R-squared": r2
         }
 
     # 결과를 데이터프레임으로 변환
     results_df = pd.DataFrame(results).T
     
+    
     return results_df
-
 
 
 all_results = []
@@ -277,7 +269,7 @@ for ticker in os.listdir(base_directory):
         model_results_flattened["Stock"] = ticker_nm
         all_results.append(model_results_flattened)
         print(f'{ticker_nm} is done')
-    # if i == 0: break
+    # if i == 5: break
     # i += 1
         
   
@@ -286,22 +278,12 @@ all_results_df = pd.DataFrame(all_results)
 
 # 열 순서 정리 (Stock을 첫 번째 열로)
 cols = ["Stock"] + [col for col in all_results_df.columns if col != "Stock"]
-all_results_df = all_results_df[cols]   
-  
+all_results_df = all_results_df[cols]     
+
 # 현재 실행 중인 파이썬 파일 이름을 얻기
 python_file_name = os.path.splitext(os.path.basename(__file__))[0]
 
 # CSV 파일 이름 생성
 csv_filename = f"{python_file_name}_model_result.csv"
- 
 all_results_df.to_csv(csv_filename, index=False)
 print(f"All stock results saved to {csv_filename}")
-    
-        
-
-
-
-
-
-
-
